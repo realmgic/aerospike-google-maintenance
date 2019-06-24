@@ -90,20 +90,15 @@ def maintenance_callback(event):
         asinfo1.extend(args.options.split())
         call(asinfo1)
 
-        #call([ASINFO, "-v", "quiesce:"].extend(args.options.split()))
     else:
         # print('Finished host maintenance')
         asinfo2 = [ASINFO, "-v", "quiesce-undo:"]
         asinfo2.extend(args.options.split())
         call(asinfo2)
 
-        # call([ASINFO, "-v", "quiesce-undo:"].extend(args.options.split()))
-
     asadm = [ASADM, "-e", "asinfo -v \"recluster:\""]
     asadm.extend(args.options.split())
     call(asadm)
-
-    #call([ASADM, "-e", "recluster:"].extend(args.options.split()))
 
 
 def main():
