@@ -125,7 +125,6 @@ def maintenance_callback(event):
     call(asadm)
     logger.debug('recluster finished')
 
-
 def main():
     wait_for_maintenance(maintenance_callback)
 
