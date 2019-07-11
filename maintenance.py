@@ -25,11 +25,31 @@ import argparse
 import time
 
 import requests
+import logging
 
 from subprocess import call
 
-parser = argparse.ArgumentParser()
+METADATA_URL = 'http://metadata.google.internal/computeMetadata/v1/'
+METADATA_HEADERS = {'Metadata-Flavor': 'Google'}
+ASINFO = "/usr/bin/asinfo"
+ASADM = "/usr/bin/asadm"
+#AGM_LOG = "/var/log/aerospike/agm.log"
+AGM_LOG = "agm.log"
+AGM_LEVEL = logging.INFO
 
+# logger setup
+logging.basicConfig()
+logger = logging.getLogger('AGM')
+logger.setLevel(AGM_LEVEL)
+
+f_handler = logging.FileHandler(AGM_LOG)
+f_format = logging.Formatter('%(asctime)s %(levelname)s %(message)s')
+f_handler.setFormatter(f_format)
+
+logger.addHandler(f_handler)
+
+# option parser
+parser = argparse.ArgumentParser()
 parser.add_argument("-o",
                     "--options",
                     dest = "options",
@@ -38,12 +58,7 @@ parser.add_argument("-o",
 
 args = parser.parse_args()
 
-print args.options
-
-METADATA_URL = 'http://metadata.google.internal/computeMetadata/v1/'
-METADATA_HEADERS = {'Metadata-Flavor': 'Google'}
-ASINFO = "/usr/bin/asinfo"
-ASADM = "/usr/bin/asadm"
+logger.debug('options: %s', args.options)
 
 
 def wait_for_maintenance(callback):
@@ -53,10 +68,18 @@ def wait_for_maintenance(callback):
     last_etag = '0'
 
     while True:
-        r = requests.get(
-            url,
-            params={'last_etag': last_etag, 'wait_for_change': True},
-            headers=METADATA_HEADERS)
+        logger.debug("start loop")
+        try:
+            r = requests.get(
+                url,
+                params={'last_etag': last_etag, 'wait_for_change': True},
+                headers=METADATA_HEADERS)
+            logger.info("agm running... status code: %s. text: %s", r.status_code, r.text)
+
+        except requests.exceptions.ConnectionError as err:
+            logger.error("ConnectionError: %s", str(err))
+            time.sleep(1)
+            continue
 
         # During maintenance the service can return a 503, so these should
         # be retried.
@@ -81,24 +104,26 @@ def wait_for_maintenance(callback):
             last_maintenance_event = maintenance_event
             callback(maintenance_event)
 
-
 def maintenance_callback(event):
     if event:
-        # print('Undergoing host maintenance: {}'.format(event))
+        logger.warning('Undergoing host maintenance: %s', event)
         # realistically, any sort of maintenence event should drain aerospike
         asinfo1 = [ASINFO, "-v", "quiesce:"]
         asinfo1.extend(args.options.split())
         call(asinfo1)
+        logger.debug('quiesce finished')
 
     else:
-        # print('Finished host maintenance')
+        logger.warning('Finished host maintenance')
         asinfo2 = [ASINFO, "-v", "quiesce-undo:"]
         asinfo2.extend(args.options.split())
         call(asinfo2)
+        logger.debug('quiesce-undo finished')
 
     asadm = [ASADM, "-e", "asinfo -v \"recluster:\""]
     asadm.extend(args.options.split())
     call(asadm)
+    logger.debug('recluster finished')
 
 
 def main():
@@ -108,3 +133,4 @@ def main():
 if __name__ == '__main__':
     main()
 # [END all]
+
