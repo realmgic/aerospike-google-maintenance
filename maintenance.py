@@ -74,7 +74,7 @@ def wait_for_maintenance(callback):
                 url,
                 params={'last_etag': last_etag, 'wait_for_change': True},
                 headers=METADATA_HEADERS)
-            logger.info("agm running... status code: %s. text: %s", r.status_code, r.text)
+            logger.info("agm running... status code: %s. text: %s", r.status_code, r.text.encode('utf-8').strip())
 
         except requests.exceptions.ConnectionError as err:
             logger.error("ConnectionError: %s", str(err))
