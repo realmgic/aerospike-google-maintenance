@@ -68,16 +68,17 @@ def wait_for_maintenance(callback):
     last_etag = '0'
 
     while True:
-        logger.info("start loop")
+        logger.info("getting the metadata request")
         try:
             r = requests.get(
                 url,
                 params={'last_etag': last_etag, 'wait_for_change': True},
                 headers=METADATA_HEADERS)
-            logger.info("agm running... status code: %s. text: %s", r.status_code, r.text.encode('utf-8').strip())
+            logger.info("agm status change, running... new status code: %s. text: %s", r.status_code, r.text.encode('utf-8').strip())
 
         except requests.exceptions.ConnectionError as err:
-            logger.error("ConnectionError: %s", str(err))
+            # connection is reset every hour, rerstart the loop
+            #logger.error("ConnectionError: %s", str(err))
             time.sleep(1)
             continue
 
@@ -86,8 +87,13 @@ def wait_for_maintenance(callback):
         if r.status_code == 503:
             time.sleep(1)
             continue
+
         # Any other response from metadata service will kill this script
-        r.raise_for_status()
+	try:
+            r.raise_for_status()
+	except requests.exceptions.HTTPError as error:
+	    logger.error("metadata service returned bad code, terminating! (%s)", str(error))
+	    raise
 
         last_etag = r.headers['etag']
         # [END hanging_get]
@@ -130,6 +136,7 @@ def main():
 
 
 if __name__ == '__main__':
+    logger.info('init service')
     main()
 # [END all]
 
