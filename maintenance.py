@@ -68,7 +68,7 @@ def wait_for_maintenance(callback):
     last_etag = '0'
 
     while True:
-        logger.debug("start loop")
+        logger.info("start loop")
         try:
             r = requests.get(
                 url,
