@@ -68,7 +68,7 @@ def wait_for_maintenance(callback):
     last_etag = '0'
 
     while True:
-        logger.info("getting the metadata request")
+        logger.info("getting the metadata request, waiting for event")
         try:
             r = requests.get(
                 url,
@@ -117,19 +117,19 @@ def maintenance_callback(event):
         asinfo1 = [ASINFO, "-v", "quiesce:"]
         asinfo1.extend(args.options.split())
         call(asinfo1)
-        logger.debug('quiesce finished')
+        logger.info('quiesce finished')
 
     else:
         logger.warning('Finished host maintenance')
         asinfo2 = [ASINFO, "-v", "quiesce-undo:"]
         asinfo2.extend(args.options.split())
         call(asinfo2)
-        logger.debug('quiesce-undo finished')
+        logger.info('quiesce-undo finished')
 
     asadm = [ASADM, "-e", "asinfo -v \"recluster:\""]
     asadm.extend(args.options.split())
     call(asadm)
-    logger.debug('recluster finished')
+    logger.info('recluster finished')
 
 def main():
     wait_for_maintenance(maintenance_callback)
