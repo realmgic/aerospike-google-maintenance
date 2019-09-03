@@ -27,7 +27,7 @@ import time
 import requests
 import logging
 
-from subprocess import call
+import subprocess
 
 METADATA_URL = 'http://metadata.google.internal/computeMetadata/v1/'
 METADATA_HEADERS = {'Metadata-Flavor': 'Google'}
@@ -59,6 +59,17 @@ args = parser.parse_args()
 
 logger.debug('options: %s', args.options)
 
+def run_shell_command(command):
+    p = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    stdout, stderr = p.communicate()
+    if stdout:
+        logger.debug("command: \"" + " ".join(command) + "\" Output: \n" + stdout)
+
+    if stderr:
+        logger.error("command: \"" + " ".join(command) + "\" Error: \n" + stderr)
+
+    if p.returncode != 0:
+        logger.error("command: \"" + " ".join(command) + "\" returned error")
 
 def wait_for_maintenance(callback):
     url = METADATA_URL + 'instance/maintenance-event'
@@ -77,7 +88,6 @@ def wait_for_maintenance(callback):
 
         except requests.exceptions.ConnectionError as err:
             # connection is reset every hour, rerstart the loop
-            #logger.error("ConnectionError: %s", str(err))
             time.sleep(1)
             continue
 
@@ -115,19 +125,19 @@ def maintenance_callback(event):
         # realistically, any sort of maintenence event should drain aerospike
         asinfo1 = [ASINFO, "-v", "quiesce:"]
         asinfo1.extend(args.options.split())
-        call(asinfo1)
+        run_shell_command(asinfo1)
         logger.info('quiesce finished')
 
     else:
         logger.warning('Finished host maintenance')
         asinfo2 = [ASINFO, "-v", "quiesce-undo:"]
         asinfo2.extend(args.options.split())
-        call(asinfo2)
+        run_shell_command(asinfo2)
         logger.info('quiesce-undo finished')
 
     asadm = [ASADM, "-e", "asinfo -v \"recluster:\""]
     asadm.extend(args.options.split())
-    call(asadm)
+    run_shell_command(asadm)
     logger.info('recluster finished')
 
 def main():
