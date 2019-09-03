@@ -33,8 +33,7 @@ METADATA_URL = 'http://metadata.google.internal/computeMetadata/v1/'
 METADATA_HEADERS = {'Metadata-Flavor': 'Google'}
 ASINFO = "/usr/bin/asinfo"
 ASADM = "/usr/bin/asadm"
-#AGM_LOG = "/var/log/aerospike/agm.log"
-AGM_LOG = "agm.log"
+AGM_LOG = "/var/log/aerospike/agm.log"
 AGM_LEVEL = logging.INFO
 
 # logger setup
