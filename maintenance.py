@@ -91,13 +91,20 @@ def wait_for_maintenance(callback):
                 headers=METADATA_HEADERS)
             logger.info("agm status change, running... new status code: %s. text: %s", r.status_code, r.text.encode('utf-8').strip())
 
-        except requests.exceptions.ConnectionError as err:
-            # connection is reset every hour, rerstart the loop
+        except requests.exceptions.TooManyRedirects:
+            # a request exceeds the configured number of maximum redirections, stop script
+            logger.error("Too Many Redirects, terminating!")
+            raise error
+
+        except requests.exceptions.RequestException as e:
+            # The connection is resetted every hour, rerstart the loop
+            # The check for 503 and raise_for_status() - 4XX and 5XX will be done separately.
+            # https://2.python-requests.org//en/latest/user/quickstart/#errors-and-exceptions
             time.sleep(1)
             continue
 
-        # During maintenance the service can return a 503, so these should
-        # be retried.
+        # During maintenance the service can return a 503, so these should be retried.
+        # https://cloud.google.com/compute/docs/storing-retrieving-metadata#statuscodes
         if r.status_code == 503:
             time.sleep(1)
             continue
@@ -107,7 +114,7 @@ def wait_for_maintenance(callback):
             r.raise_for_status()
 	except requests.exceptions.HTTPError as error:
 	    logger.error("metadata service returned bad code, terminating! (%s)", str(error))
-	    raise
+	    raise error
 
         last_etag = r.headers['etag']
         # [END hanging_get]
