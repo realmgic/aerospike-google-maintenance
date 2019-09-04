@@ -62,14 +62,19 @@ logger.debug('options: %s', args.options)
 def run_shell_command(command):
     p = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     stdout, stderr = p.communicate()
-    if stdout:
-        logger.debug("command: \"" + " ".join(command) + "\" Output: \n" + stdout)
-
-    if stderr:
-        logger.error("command: \"" + " ".join(command) + "\" Error: \n" + stderr)
 
     if p.returncode != 0:
         logger.error("command: \"" + " ".join(command) + "\" returned error")
+    else:
+        logger.info("Command \"" + " ".join(command) + "\" ran successfully")
+
+    if stderr:
+        logger.error("command: \"" + " ".join(command) + "\" Error: \n" + stderr)
+        return
+
+    if stdout:
+        logger.debug("command: \"" + " ".join(command) + "\" Output: \n" + stdout)
+
 
 def wait_for_maintenance(callback):
     url = METADATA_URL + 'instance/maintenance-event'
