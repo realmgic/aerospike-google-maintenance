@@ -59,21 +59,23 @@ args = parser.parse_args()
 
 logger.debug('options: %s', args.options)
 
+
+# Run shell command and check success or failure.
 def run_shell_command(command):
     p = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     stdout, stderr = p.communicate()
 
-    if p.returncode != 0:
-        logger.error("command: \"" + " ".join(command) + "\" returned error")
-    else:
-        logger.info("Command \"" + " ".join(command) + "\" ran successfully")
-
     if stderr:
-        logger.error("command: \"" + " ".join(command) + "\" Error: \n" + stderr)
+        logger.error("Command: \"" + " ".join(command) + "\" Error: \n" + stderr)
         return
 
     if stdout:
-        logger.debug("command: \"" + " ".join(command) + "\" Output: \n" + stdout)
+        logger.debug("Command: \"" + " ".join(command) + "\" Output: \n" + stdout)
+
+    if p.returncode != 0:
+        logger.error("Command: \"" + " ".join(command) + "\" returned with error code: " + str(p.returncode))
+    else:
+        logger.info("Command \"" + " ".join(command) + "\" ran successfully")
 
 
 def wait_for_maintenance(callback):
@@ -91,30 +93,33 @@ def wait_for_maintenance(callback):
                 headers=METADATA_HEADERS)
             logger.info("agm status change, running... new status code: %s. text: %s", r.status_code, r.text.encode('utf-8').strip())
 
-        except requests.exceptions.TooManyRedirects:
-            # a request exceeds the configured number of maximum redirections, stop script
-            logger.error("Too Many Redirects, terminating!")
-            raise error
+        except requests.exceptions.TooManyRedirects as tmr:
+            # A request exceeds the configured number of maximum redirections, stop script
+            # May want to try a different URL, better not to retry.
+            logger.error("Too Many Redirects %s, terminating!", str(tmr))
+            raise tmr
 
-        except requests.exceptions.RequestException as e:
-            # The connection is resetted every hour, rerstart the loop
+        except requests.exceptions.RequestException as re:
+            # Retry for all other errors (ConnectionError, Timeout ..). 
             # The check for 503 and raise_for_status() - 4XX and 5XX will be done separately.
             # https://2.python-requests.org//en/latest/user/quickstart/#errors-and-exceptions
+            logger.error("Request Exception %s, Retrying....", str(re))
             time.sleep(1)
             continue
 
         # During maintenance the service can return a 503, so these should be retried.
-        # https://cloud.google.com/compute/docs/storing-retrieving-metadata#statuscodes
+        # Check https://cloud.google.com/compute/docs/storing-retrieving-metadata#statuscodes
         if r.status_code == 503:
             time.sleep(1)
             continue
 
-        # Any other response from metadata service will kill this script
-	try:
+        # Any other response from metadata service will kill this script.
+        # No retry.
+        try:
             r.raise_for_status()
-	except requests.exceptions.HTTPError as error:
-	    logger.error("metadata service returned bad code, terminating! (%s)", str(error))
-	    raise error
+        except requests.exceptions.HTTPError as error:
+            logger.error("metadata service returned bad code, terminating! (%s)", str(error))
+            raise error
 
         last_etag = r.headers['etag']
         # [END hanging_get]
@@ -135,16 +140,16 @@ def maintenance_callback(event):
     if event:
         logger.warning('Undergoing host maintenance: %s', event)
         # realistically, any sort of maintenence event should drain aerospike
-        asinfo1 = [ASINFO, "-v", "quiesce:"]
-        asinfo1.extend(args.options.split())
-        run_shell_command(asinfo1)
+        asinfo = [ASINFO, "-v", "quiesce:"]
+        asinfo.extend(args.options.split())
+        run_shell_command(asinfo)
         logger.info('quiesce finished')
 
     else:
-        logger.warning('Finished host maintenance')
-        asinfo2 = [ASINFO, "-v", "quiesce-undo:"]
-        asinfo2.extend(args.options.split())
-        run_shell_command(asinfo2)
+        logger.info('Finished host maintenance')
+        asinfo = [ASINFO, "-v", "quiesce-undo:"]
+        asinfo.extend(args.options.split())
+        run_shell_command(asinfo)
         logger.info('quiesce-undo finished')
 
     asadm = [ASADM, "-e", "asinfo -v \"recluster:\""]
