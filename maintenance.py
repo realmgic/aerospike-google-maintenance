@@ -40,7 +40,7 @@ AGM_LEVEL = logging.INFO
 MAX_TIMEOUT = 3600
 
 # persist status over runs
-is_persistent_last_event = True
+is_persistent_last_event = False
 AS_TMP_LAST_STATUS_FILE = '/tmp/agm_last_status.tmp'
 
 # logger setup
