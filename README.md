@@ -25,7 +25,7 @@ nohup ./maintenance.py &
 # Parameters:
 
 ```
-usage: maintenance.py [-h] [-o OPTIONS] [-p | -n]
+usage: maintenance.py [-h] [-o OPTIONS] [-t TIMEOUT] [-p | -n]
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -33,6 +33,9 @@ optional arguments:
                         Additional options to pass into asinfo. Can be
                         anything except commands, ie: "-v $COMMAND". Entire
                         string must be quoted, eg: -o="-u admin -p admin"
+  -t TIMEOUT, --timeout TIMEOUT
+                        Timeout for the Google metadata service in seconds, up
+                        to 3600 (default 3600)
   -p, --persist         Persist the last event to file
   -n, --non-persist     Disable persist the last event to file (default)
 
