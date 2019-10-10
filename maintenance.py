@@ -40,7 +40,7 @@ AGM_LEVEL = logging.INFO
 MAX_TIMEOUT = 3600
 
 # persist status over runs
-is_persistent_last_event = False
+is_persistent_last_event = False  # the default set at the parser
 AS_TMP_LAST_STATUS_FILE = '/tmp/agm_last_status.tmp'
 
 # logger setup
@@ -62,6 +62,20 @@ parser.add_argument("-o",
                     default = "",
                     help = "Additional options to pass into asinfo. Can be anything except commands, ie: \"-v $COMMAND\". Entire string must be quoted, eg: -o=\"-u admin -p admin\"")
 
+feature_parser = parser.add_mutually_exclusive_group(required=False)
+feature_parser.add_argument("-p",
+                    "--persist",
+                    dest="is_persistent_last_event",
+                    action="store_true",
+                    help="Persist the last event to file")
+
+feature_parser.add_argument("-n",
+                    "--non-persist",
+                    dest="is_persistent_last_event",
+                    action="store_false",
+                    help="Disable persist the last event to file (default)")
+
+parser.set_defaults(is_persistent_last_event=False)
 args = parser.parse_args()
 
 logger.debug('options: %s', args.options)
@@ -170,6 +184,7 @@ def wait_for_maintenance(callback):
                 set_last_maintenance_event(last_maintenance_event)
 
             callback(maintenance_event)
+
 
 def maintenance_callback(event):
     if event != "NONE":
