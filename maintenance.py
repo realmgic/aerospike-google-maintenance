@@ -35,6 +35,8 @@ ASINFO = "/usr/bin/asinfo"
 ASADM = "/usr/bin/asadm"
 AGM_LOG = "/var/log/aerospike/agm.log"
 AGM_LEVEL = logging.INFO
+# Timeout in seconds, up to 3600 (which is google max timeout)
+MAX_TIMEOUT = 3600
 
 # logger setup
 logging.basicConfig()
@@ -89,9 +91,9 @@ def wait_for_maintenance(callback):
         try:
             r = requests.get(
                 url,
-                params={'last_etag': last_etag, 'wait_for_change': True},
+                params={'last_etag': last_etag, 'wait_for_change': True, 'timeout_sec': MAX_TIMEOUT},
                 headers=METADATA_HEADERS)
-            logger.info("agm status change, running... new status code: %s. text: %s", r.status_code, r.text.encode('utf-8').strip())
+            logger.info("Google Metadata returned with status code: %s. text: %s", r.status_code, r.text.encode('utf-8').strip())
 
         except requests.exceptions.TooManyRedirects as tmr:
             # A request exceeds the configured number of maximum redirections, stop script
@@ -130,16 +132,17 @@ def wait_for_maintenance(callback):
             # Possible events:
             #   MIGRATE_ON_HOST_MAINTENANCE: instance will be migrated
             #   TERMINATE_ON_HOST_MAINTENANCE: instance will be shut down
-            maintenance_event = r.text
+            maintenance_event = r.text.encode('utf-8').strip()
 
         if maintenance_event != last_maintenance_event:
+            logger.info("Maintenance event changed from %s to %s", last_maintenance_event, maintenance_event)
             last_maintenance_event = maintenance_event
             callback(maintenance_event)
 
 def maintenance_callback(event):
     if event:
         logger.warning('Undergoing host maintenance: %s', event)
-        # realistically, any sort of maintenence event should drain aerospike
+        # realistically, any sort of maintenance event should drain aerospike
         asinfo = [ASINFO, "-v", "quiesce:"]
         asinfo.extend(args.options.split())
         run_shell_command(asinfo)
