@@ -23,6 +23,7 @@ For more information, see the README.md under /compute.
 
 import argparse
 import time
+import os
 
 import requests
 import logging
@@ -37,6 +38,10 @@ AGM_LOG = "/var/log/aerospike/agm.log"
 AGM_LEVEL = logging.INFO
 # Timeout in seconds, up to 3600 (which is google max timeout)
 MAX_TIMEOUT = 3600
+
+# persist status over runs
+is_persistent_last_event = True
+AS_TMP_LAST_STATUS_FILE = '/tmp/agm_last_status.tmp'
 
 # logger setup
 logging.basicConfig()
@@ -61,6 +66,27 @@ args = parser.parse_args()
 
 logger.debug('options: %s', args.options)
 
+# Persist status over runs
+def set_last_maintenance_event(last_maintenance_event):
+    try:
+        with open(AS_TMP_LAST_STATUS_FILE, 'w') as tmpfile:
+            tmpfile.write(str(last_maintenance_event))
+    except IOError as e:
+        logger.error('Could not open %s for writing: %s', AS_TMP_LAST_STATUS_FILE, str(e))
+
+def get_last_maintenance_event():
+
+    if not os.path.isfile(AS_TMP_LAST_STATUS_FILE):
+        return "NONE"
+
+    try:
+        with open(AS_TMP_LAST_STATUS_FILE, 'r') as tmpfile:
+            last_status = tmpfile.read()
+            return last_status
+
+    except IOError as e:
+        logger.error("Could not open %s for reading: %s", AS_TMP_LAST_STATUS_FILE, str(e))
+        return "NONE"
 
 # Run shell command and check success or failure.
 def run_shell_command(command):
@@ -102,7 +128,7 @@ def wait_for_maintenance(callback):
             raise tmr
 
         except requests.exceptions.RequestException as re:
-            # Retry for all other errors (ConnectionError, Timeout ..). 
+            # Retry for all other errors (ConnectionError, Timeout ..).
             # The check for 503 and raise_for_status() - 4XX and 5XX will be done separately.
             # https://2.python-requests.org//en/latest/user/quickstart/#errors-and-exceptions
             logger.error("Request Exception %s, Retrying....", str(re))
@@ -127,20 +153,26 @@ def wait_for_maintenance(callback):
         # [END hanging_get]
 
         if r.text == 'NONE':
-            maintenance_event = None
+            maintenance_event = 'NONE'
         else:
             # Possible events:
             #   MIGRATE_ON_HOST_MAINTENANCE: instance will be migrated
             #   TERMINATE_ON_HOST_MAINTENANCE: instance will be shut down
             maintenance_event = r.text.encode('utf-8').strip()
 
+        if is_persistent_last_event:
+            last_maintenance_event = get_last_maintenance_event()
+
         if maintenance_event != last_maintenance_event:
             logger.info("Maintenance event changed from %s to %s", last_maintenance_event, maintenance_event)
             last_maintenance_event = maintenance_event
+            if is_persistent_last_event:
+                set_last_maintenance_event(last_maintenance_event)
+
             callback(maintenance_event)
 
 def maintenance_callback(event):
-    if event:
+    if event != "NONE":
         logger.warning('Undergoing host maintenance: %s', event)
         # realistically, any sort of maintenance event should drain aerospike
         asinfo = [ASINFO, "-v", "quiesce:"]
