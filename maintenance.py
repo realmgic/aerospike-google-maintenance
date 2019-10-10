@@ -62,6 +62,13 @@ parser.add_argument("-o",
                     default = "",
                     help = "Additional options to pass into asinfo. Can be anything except commands, ie: \"-v $COMMAND\". Entire string must be quoted, eg: -o=\"-u admin -p admin\"")
 
+parser.add_argument("-t",
+                    "--timeout",
+                    type=int,
+                    dest="timeout",
+                    default=3600,
+                    help="Timeout for the Google metadata service in seconds, up to 3600 (default 3600)")
+
 feature_parser = parser.add_mutually_exclusive_group(required=False)
 feature_parser.add_argument("-p",
                     "--persist",
@@ -79,6 +86,11 @@ parser.set_defaults(is_persistent_last_event=False)
 args = parser.parse_args()
 
 logger.debug('options: %s', args.options)
+logger.debug('is_persistent_last_event: %s', args.is_persistent_last_event)
+logger.debug('max_timeout: %s', args.timeout)
+
+is_persistent_last_event = args.is_persistent_last_event
+MAX_TIMEOUT = args.timeout
 
 # Persist status over runs
 def set_last_maintenance_event(last_maintenance_event):
@@ -112,7 +124,7 @@ def run_shell_command(command):
         return
 
     if stdout:
-        logger.debug("Command: \"" + " ".join(command) + "\" Output: \n" + stdout)
+        logger.info("Command: \"" + " ".join(command) + "\" Output: \n" + stdout)
 
     if p.returncode != 0:
         logger.error("Command: \"" + " ".join(command) + "\" returned with error code: " + str(p.returncode))
@@ -122,7 +134,11 @@ def run_shell_command(command):
 
 def wait_for_maintenance(callback):
     url = METADATA_URL + 'instance/maintenance-event'
-    last_maintenance_event = None
+    if is_persistent_last_event:
+        last_maintenance_event = get_last_maintenance_event()
+    else:
+        last_maintenance_event = "NONE"
+
     # [START hanging_get]
     last_etag = '0'
 
